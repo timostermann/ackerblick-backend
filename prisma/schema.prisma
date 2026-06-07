@@ -1,0 +1,259 @@
+// schema.prisma — Ackerblick
+// PostgreSQL via Prisma. Timestamps are stored WITH timezone (@db.Timestamptz).
+//
+// TIME-SERIES / TIMESCALEDB:
+// SensorReading, IrrigationEvent and CameraImage are append-only time-series
+// tables converted to TimescaleDB hypertables in the initial migration
+// (CREATE EXTENSION + create_hypertable, appended by hand to migration.sql).
+// A hypertable cannot have a unique index/PK without its partition column, so
+// these tables use a COMPOSITE primary key with the time column first
+// (e.g. @@id([recordedAt, id])). The DB image must be a TimescaleDB image.
+//
+// All measurement columns are NULLABLE so new payload fields (BME280, battery)
+// are purely additive — old rows stay NULL, never a backfill.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// TIME-SERIES (the only tables exercised by the prototype)
+// ---------------------------------------------------------------------------
+
+// Periodic environmental snapshot, emitted ~every 15 min by a device.
+// Today: { deviceId, soilMoisture }. Monday: + BME280 fields. Later: + battery.
+model SensorReading {
+  id String @default(cuid())
+
+  // The device self-registers on first contact (upsert on ingest), so this FK
+  // is satisfied. Nullable so onDelete: SetNull is valid; always populated.
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  soilMoisturePercent     Float? // 0–100, capacitive sensor
+  airTemperatureCelsius   Float? // BME280 — arriving later
+  relativeHumidityPercent Float? // BME280 — arriving later
+  airPressureHpa          Float? // BME280 — arriving later
+  batteryVoltage          Float? // arriving later
+
+  // Measurement time. Firmware has no clock, so the server stamps it on receipt
+  // today; kept distinct from createdAt for future clocked devices / backfills.
+  recordedAt DateTime @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  // Composite PK with the partition column first (TimescaleDB requirement).
+  @@id([recordedAt, id])
+  @@index([deviceId, recordedAt])
+  @@index([recordedAt])
+}
+
+// Discrete watering event — different shape from a periodic reading.
+model IrrigationEvent {
+  id String @default(cuid())
+
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  durationSeconds       Int
+  moistureBeforePercent Float?
+  moistureAfterPercent  Float?
+  waterVolumeLiters     Float? // future: metered water use (sustainability)
+
+  occurredAt DateTime @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  @@id([occurredAt, id])
+  @@index([deviceId, occurredAt])
+  // Matches the descending time index TimescaleDB creates for the hypertable.
+  @@index([occurredAt])
+}
+
+// Camera images / time-lapses. Object-storage URL, never blobs in Postgres.
+model CameraImage {
+  id String @default(cuid())
+
+  deviceId String?
+  device   Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  storageUrl String
+  capturedAt DateTime @db.Timestamptz
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  @@id([capturedAt, id])
+  @@index([deviceId, capturedAt])
+  // Matches the descending time index TimescaleDB creates for the hypertable.
+  @@index([capturedAt])
+}
+
+// ---------------------------------------------------------------------------
+// HARDWARE
+// ---------------------------------------------------------------------------
+
+// id = the hardware identifier sent in the payload (e.g. "hochbeet-001").
+model Device {
+  id String @id // supplied by firmware, not generated
+
+  label       String?
+  hardware    String? // free-form: "ESP32 + BME280 + capacitive moisture"
+  status      DeviceStatus @default(ACTIVE)
+  installedAt DateTime?    @db.Timestamptz
+  lastSeenAt  DateTime?    @db.Timestamptz
+
+  parcelId String?
+  parcel   Parcel? @relation(fields: [parcelId], references: [id], onDelete: SetNull)
+
+  readings         SensorReading[]
+  irrigationEvents IrrigationEvent[]
+  cameraImages     CameraImage[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@index([parcelId])
+}
+
+enum DeviceStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  DECOMMISSIONED
+}
+
+// ---------------------------------------------------------------------------
+// TENANCY (Customer → Field → Parcel) — empty in the prototype
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  parcels   Parcel[]
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+}
+
+model Field {
+  id        String   @id @default(cuid())
+  name      String
+  latitude  Float?
+  longitude Float?
+  parcels   Parcel[]
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+}
+
+enum ParcelKind {
+  PRODUCTIVE // a rentable, crop-growing plot
+  BIODIVERSITY // tracked separately from productive plots
+}
+
+model Parcel {
+  id   String @id @default(cuid())
+  code String // human label within the field, e.g. "A-12"
+
+  kind        ParcelKind  @default(PRODUCTIVE)
+  serviceTier ServiceTier @default(BASIC_RENTAL)
+
+  fieldId String
+  field   Field  @relation(fields: [fieldId], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  devices   Device[]
+  plantings ParcelPlanting[]
+  events    ParcelEvent[]
+  analyses  SoilAnalysis[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@unique([fieldId, code])
+  @@index([customerId])
+}
+
+enum ServiceTier {
+  BASIC_RENTAL // pre-seeded plot, camera access
+  SMART_GARDEN // automated irrigation, sensors, app
+  GARDEN_AS_A_SERVICE // Ackerblick handles planting/care/harvest
+  FULL_SERVICE_DELIVERY // veggie box assembled and delivered
+  REGENERATIVE // greenhouse, rainwater, solar
+}
+
+// ---------------------------------------------------------------------------
+// OPERATIONS & AGRONOMY — stubs so FKs are wired, expanded later
+// ---------------------------------------------------------------------------
+
+model CropVariety {
+  id        String           @id @default(cuid())
+  name      String           @unique // "Cherry tomato 'Sungold'"
+  species   String? // "Solanum lycopersicum"
+  plantings ParcelPlanting[]
+  createdAt DateTime         @default(now()) @db.Timestamptz
+}
+
+// Crop selection per parcel per season.
+model ParcelPlanting {
+  id String @id @default(cuid())
+
+  parcelId String
+  parcel   Parcel @relation(fields: [parcelId], references: [id])
+
+  cropVarietyId String
+  cropVariety   CropVariety @relation(fields: [cropVarietyId], references: [id])
+
+  season    String // "2026" or "2026-spring"
+  plantedAt DateTime? @db.Timestamptz
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([parcelId, season])
+}
+
+enum ParcelEventType {
+  PLANTING
+  CARE
+  HARVEST
+  PEST_MANAGEMENT
+}
+
+// Manual operations log — staff-entered, low volume.
+model ParcelEvent {
+  id String @id @default(cuid())
+
+  parcelId String
+  parcel   Parcel @relation(fields: [parcelId], references: [id])
+
+  type       ParcelEventType
+  notes      String?
+  occurredAt DateTime        @db.Timestamptz
+  createdAt  DateTime        @default(now()) @db.Timestamptz
+
+  @@index([parcelId, occurredAt])
+}
+
+// Periodic lab soil analysis — soil quality over time.
+model SoilAnalysis {
+  id String @id @default(cuid())
+
+  parcelId String
+  parcel   Parcel @relation(fields: [parcelId], references: [id])
+
+  humusPercent      Float?
+  ph                Float?
+  nitrogenMgPerKg   Float?
+  phosphorusMgPerKg Float?
+  potassiumMgPerKg  Float?
+
+  sampledAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([parcelId, sampledAt])
+}
