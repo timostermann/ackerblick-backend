@@ -1,0 +1,25 @@
+# Local development database only.
+# Deployment infra (Hetzner/Terraform/Cloudflare) is out of scope for this repo.
+# IMPORTANT: this is a TimescaleDB image — the Prisma migration creates
+# hypertables, which a plain `postgres` image cannot do.
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    container_name: ackerblick-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ackerblick
+      POSTGRES_PASSWORD: ackerblick
+      POSTGRES_DB: ackerblick
+    ports:
+      - "5432:5432"
+    volumes:
+      - ackerblick-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ackerblick -d ackerblick"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ackerblick-db-data:

@@ -5,8 +5,9 @@ HTTP contract and runtime behavior of the ESP32 firmware
 (`ackerblick-firmware`) as it is actually implemented today, plus the
 behavioral and forward-looking context that should shape the backend design.
 
-The backend does not exist yet; the firmware currently POSTs to a disposable
-**webhook.site** URL for testing.
+The backend does not exist yet. The firmware targets **`https://api.ackerblick.com/v1/readings`**
+(configured in the firmware's `config.h`); the path can be adjusted to match the
+final backend route.
 
 ---
 
@@ -15,17 +16,17 @@ The backend does not exist yet; the firmware currently POSTs to a disposable
 The device makes **one HTTP request per wake cycle**:
 
 ```
-POST <API_ENDPOINT>              # full URL is firmware config — backend just provides one
+POST https://api.ackerblick.com/v1/readings
 Content-Type: application/json
 X-API-Key: <shared static key>
 
 { "deviceId": "hochbeet-001", "soilMoisture": 42 }
 ```
 
-| Field          | Type    | Semantics                                                              |
-|----------------|---------|------------------------------------------------------------------------|
+| Field          | Type    | Semantics                                                                                                          |
+| -------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
 | `deviceId`     | string  | Stable device identity. Currently hardcoded `"hochbeet-001"`. Will become per-plot (one device per rented garden). |
-| `soilMoisture` | integer | Calibrated **0–100 %**. Already clamped to that range on-device.       |
+| `soilMoisture` | integer | Calibrated **0–100 %**. Already clamped to that range on-device.                                                   |
 
 - Field names are deliberately **semantic, not hardware-specific** (no
   `adc_raw`). Keep this convention server-side.
@@ -43,10 +44,10 @@ X-API-Key: <shared static key>
 ## 3. TLS
 
 - The device currently connects over HTTPS but with **certificate validation
-  disabled** (`setInsecure()`) — fine for the webhook.site prototype only.
-- **The endpoint must be HTTPS with a publicly-trusted cert** (e.g. Let's
-  Encrypt). The firmware will switch to CA validation before production, so a
-  valid chain becomes a hard requirement then.
+  disabled** (`setInsecure()`) — prototype only.
+- **`api.ackerblick.com` must serve HTTPS with a publicly-trusted cert** (e.g.
+  Let's Encrypt). The firmware will switch to CA validation before production, so
+  a valid chain becomes a hard requirement then.
 
 ## 4. Device behavior the backend must assume
 
