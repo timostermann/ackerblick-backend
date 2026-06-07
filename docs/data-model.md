@@ -15,8 +15,8 @@ later without a redesign.
 ## Domain in a nutshell
 
 - A **Customer** rents one or more **Parcels**.
-- A **Field** is subdivided into **Parcels**; a parcel is either *productive*
-  (grows crops) or a *biodiversity* area (tracked, not rented).
+- A **Field** is subdivided into **Parcels**; a parcel is either _productive_
+  (grows crops) or a _biodiversity_ area (tracked, not rented).
 - Each parcel has a **ServiceTier** (basic rental → smart garden → garden-as-a-
   service → full service with delivery → regenerative).
 - A **Device** (ESP32) sits on a parcel and emits time-series:
