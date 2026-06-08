@@ -21,7 +21,7 @@ export class DashboardController {
   @UseGuards(BasicAuthGuard)
   @Header("Content-Type", "text/html; charset=utf-8")
   @ApiOperation({
-    summary: "Temporary server-rendered dashboard (HTML).",
+    summary: "Server-rendered dashboard (HTML).",
     description:
       "Returns an HTML page (table + Chart.js soil-moisture line chart) of the most " +
       "recent readings. Protected by HTTP Basic auth. Not a JSON endpoint.",

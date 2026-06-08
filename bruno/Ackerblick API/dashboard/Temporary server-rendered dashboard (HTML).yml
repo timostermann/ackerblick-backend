@@ -1,0 +1,33 @@
+info:
+  name: Temporary server-rendered dashboard (HTML).
+  type: http
+  seq: 1
+  tags:
+    - dashboard
+
+http:
+  method: GET
+  url: "{{baseUrl}}/dashboard"
+  auth:
+    type: basic
+    username: "{{username}}"
+    password: "{{password}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+
+examples:
+  - name: 401 Response
+    description: Invalid or missing credentials.
+    request:
+      url: "{{baseUrl}}/dashboard"
+      method: GET
+    response:
+      status: 401
+      statusText: Unauthorized
+      body:
+        type: text
+        data: ""

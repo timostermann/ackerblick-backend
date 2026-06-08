@@ -71,17 +71,5 @@
     "typescript-eslint": "^8.20.0",
     "unplugin-swc": "^1.5.1",
     "vitest": "^3.0.0"
-  },
-  "lint-staged": {
-    "*.{ts,js,mjs,cjs}": [
-      "eslint --fix --max-warnings 0",
-      "prettier --write"
-    ],
-    "*.{json,md,yml,yaml}": [
-      "prettier --write"
-    ],
-    "*.ts": [
-      "vitest related --run --passWithNoTests"
-    ]
   }
 }

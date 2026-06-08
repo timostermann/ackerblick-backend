@@ -23,6 +23,7 @@ export default defineConfig({
         "src/main.ts",
         "**/*.module.ts",
         "prisma/migrations/**",
+        "src/generated/**",
       ],
     },
   },

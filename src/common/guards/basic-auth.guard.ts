@@ -7,7 +7,7 @@ import type { CanActivate, ExecutionContext } from "@nestjs/common";
 import type { Request, Response } from "express";
 
 /**
- * HTTP Basic auth for the temporary dashboard. Browser-friendly: emits a
+ * HTTP Basic auth for the dashboard. Browser-friendly: emits a
  * `WWW-Authenticate` header on failure so the browser shows a login prompt.
  */
 @Injectable()

@@ -10,8 +10,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
-    // Prisma 7 uses driver adapters for the runtime connection. DATABASE_URL is
-    // loaded into process.env by dotenv (see main.ts) before DI instantiates this.
+    // DATABASE_URL is loaded by dotenv in main.ts before DI instantiates this.
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error("DATABASE_URL is not set");

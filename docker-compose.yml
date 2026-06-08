@@ -1,7 +1,6 @@
 # Local development database only.
-# Deployment infra (Hetzner/Terraform/Cloudflare) is out of scope for this repo.
-# IMPORTANT: this is a TimescaleDB image — the Prisma migration creates
-# hypertables, which a plain `postgres` image cannot do.
+# IMPORTANT: use a TimescaleDB image — the migration creates hypertables,
+# which a plain postgres image cannot do.
 services:
   db:
     image: timescale/timescaledb-ha:pg16
