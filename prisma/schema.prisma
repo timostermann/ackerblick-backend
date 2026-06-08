@@ -24,11 +24,11 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
-// TIME-SERIES (the only tables exercised by the prototype)
+// TIME-SERIES
 // ---------------------------------------------------------------------------
 
 // Periodic environmental snapshot, emitted ~every 15 min by a device.
-// Today: { deviceId, soilMoisture }. Monday: + BME280 fields. Later: + battery.
+// Measurement columns are nullable so new sensor fields are purely additive.
 model SensorReading {
   id String @default(cuid())
 
@@ -37,14 +37,14 @@ model SensorReading {
   deviceId String?
   device   Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
 
-  soilMoisturePercent     Float? // 0–100, capacitive sensor
-  airTemperatureCelsius   Float? // BME280 — arriving later
-  relativeHumidityPercent Float? // BME280 — arriving later
-  airPressureHpa          Float? // BME280 — arriving later
-  batteryVoltage          Float? // arriving later
+  soilMoisturePercent     Float? // capacitive sensor, 0–100
+  airTemperatureCelsius   Float? // BME280
+  relativeHumidityPercent Float? // BME280
+  airPressureHpa          Float? // BME280
+  batteryVoltage          Float?
 
-  // Measurement time. Firmware has no clock, so the server stamps it on receipt
-  // today; kept distinct from createdAt for future clocked devices / backfills.
+  // Measurement time. Firmware has no real-time clock; server stamps on receipt.
+  // Kept distinct from createdAt for future clocked devices and backfills.
   recordedAt DateTime @db.Timestamptz
   createdAt  DateTime @default(now()) @db.Timestamptz
 
@@ -102,7 +102,7 @@ model Device {
 
   label       String?
   hardware    String? // free-form: "ESP32 + BME280 + capacitive moisture"
-  status      DeviceStatus @default(ACTIVE)
+  status      String       @default("ACTIVE")
   installedAt DateTime?    @db.Timestamptz
   lastSeenAt  DateTime?    @db.Timestamptz
 
@@ -119,15 +119,8 @@ model Device {
   @@index([parcelId])
 }
 
-enum DeviceStatus {
-  ACTIVE
-  INACTIVE
-  MAINTENANCE
-  DECOMMISSIONED
-}
-
 // ---------------------------------------------------------------------------
-// TENANCY (Customer → Field → Parcel) — empty in the prototype
+// TENANCY (Customer → Field → Parcel)
 // ---------------------------------------------------------------------------
 
 model Customer {
@@ -149,17 +142,12 @@ model Field {
   updatedAt DateTime @updatedAt @db.Timestamptz
 }
 
-enum ParcelKind {
-  PRODUCTIVE // a rentable, crop-growing plot
-  BIODIVERSITY // tracked separately from productive plots
-}
-
 model Parcel {
   id   String @id @default(cuid())
   code String // human label within the field, e.g. "A-12"
 
-  kind        ParcelKind  @default(PRODUCTIVE)
-  serviceTier ServiceTier @default(BASIC_RENTAL)
+  kind        String @default("PRODUCTIVE")
+  serviceTier String @default("BASIC_RENTAL")
 
   fieldId String
   field   Field  @relation(fields: [fieldId], references: [id])
@@ -177,14 +165,6 @@ model Parcel {
 
   @@unique([fieldId, code])
   @@index([customerId])
-}
-
-enum ServiceTier {
-  BASIC_RENTAL // pre-seeded plot, camera access
-  SMART_GARDEN // automated irrigation, sensors, app
-  GARDEN_AS_A_SERVICE // Ackerblick handles planting/care/harvest
-  FULL_SERVICE_DELIVERY // veggie box assembled and delivered
-  REGENERATIVE // greenhouse, rainwater, solar
 }
 
 // ---------------------------------------------------------------------------
@@ -217,13 +197,6 @@ model ParcelPlanting {
   @@index([parcelId, season])
 }
 
-enum ParcelEventType {
-  PLANTING
-  CARE
-  HARVEST
-  PEST_MANAGEMENT
-}
-
 // Manual operations log — staff-entered, low volume.
 model ParcelEvent {
   id String @id @default(cuid())
@@ -231,7 +204,7 @@ model ParcelEvent {
   parcelId String
   parcel   Parcel @relation(fields: [parcelId], references: [id])
 
-  type       ParcelEventType
+  type       String
   notes      String?
   occurredAt DateTime        @db.Timestamptz
   createdAt  DateTime        @default(now()) @db.Timestamptz
