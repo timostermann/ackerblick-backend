@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsInt, IsString, Length } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsInt, IsNumber, IsOptional, IsString, Length } from "class-validator";
 
 /**
  * Firmware ingest payload. Field names are semantic, not hardware-specific.
@@ -25,4 +25,19 @@ export class CreateReadingDto {
   })
   @IsInt()
   soilMoisture!: number;
+
+  @ApiPropertyOptional({ description: "Air temperature in °C from BME280.", example: 22.5 })
+  @IsOptional()
+  @IsNumber()
+  temperature?: number;
+
+  @ApiPropertyOptional({ description: "Relative humidity in % from BME280.", example: 55.0 })
+  @IsOptional()
+  @IsNumber()
+  humidity?: number;
+
+  @ApiPropertyOptional({ description: "Air pressure in hPa from BME280.", example: 1013.25 })
+  @IsOptional()
+  @IsNumber()
+  pressure?: number;
 }

@@ -28,6 +28,9 @@ export class ReadingsService {
         data: {
           deviceId: dto.deviceId,
           soilMoisturePercent: dto.soilMoisture,
+          airTemperatureCelsius: dto.temperature ?? null,
+          relativeHumidityPercent: dto.humidity ?? null,
+          airPressureHpa: dto.pressure ?? null,
           recordedAt,
         },
       });

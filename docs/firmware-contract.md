@@ -20,13 +20,24 @@ POST https://api.ackerblick.com/v1/readings
 Content-Type: application/json
 X-API-Key: <shared static key>
 
-{ "deviceId": "hochbeet-001", "soilMoisture": 42 }
+{
+  "deviceId": "hochbeet-001",
+  "soilMoisture": 42,
+  "temperature": 22.5,
+  "humidity": 55.1,
+  "pressure": 1013.2
+}
 ```
 
-| Field          | Type    | Semantics                                                                                                          |
-| -------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
-| `deviceId`     | string  | Stable device identity. Currently hardcoded `"hochbeet-001"`. Will become per-plot (one device per rented garden). |
-| `soilMoisture` | integer | Calibrated **0–100 %**. Already clamped to that range on-device.                                                   |
+`temperature`, `humidity`, and `pressure` are **optional** — omitted when the BME280 fails to initialise or is absent. `soilMoisture` is always present.
+
+| Field          | Type    | Unit | Semantics                                                                                                          |
+| -------------- | ------- | ---- | ------------------------------------------------------------------------------------------------------------------ |
+| `deviceId`     | string  | —    | Stable device identity. Currently hardcoded `"hochbeet-001"`. Will become per-plot (one device per rented garden). |
+| `soilMoisture` | integer | %    | Calibrated soil moisture **0–100**. Clamped on-device by the capacitive sensor library.                            |
+| `temperature`  | float   | °C   | Air temperature from the BME280. Sensor is board-mounted; readings run ~1–3 °C high due to ESP32 self-heating.     |
+| `humidity`     | float   | % RH | Relative humidity from the BME280.                                                                                 |
+| `pressure`     | float   | hPa  | Absolute air pressure from the BME280 (Pa ÷ 100 on-device).                                                        |
 
 - Field names are deliberately **semantic, not hardware-specific** (no
   `adc_raw`). Keep this convention server-side.
