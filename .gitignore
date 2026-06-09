@@ -22,3 +22,10 @@ npm-debug.log*
 # os / editor
 .DS_Store
 .idea
+
+# terraform
+*.tfvars
+!*.tfvars.example
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/

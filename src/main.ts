@@ -11,7 +11,7 @@ import { API_KEY_HEADER } from "./common/guards/api-key.guard";
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix("v1", { exclude: ["dashboard"] });
+  app.setGlobalPrefix("v1", { exclude: ["dashboard", "health"] });
 
   app.useGlobalPipes(
     new ValidationPipe({

@@ -1,0 +1,76 @@
+# Production compose file.
+# Local dev: use docker-compose.yml (plain DB, no reverse proxy).
+# Secrets must never be committed — they live in .env on the host.
+#
+# DATABASE_URL in .env must point to the db service hostname:
+#   DATABASE_URL=postgresql://<user>:<password>@db:5432/<dbname>?schema=public
+
+services:
+  db:
+    image: timescale/timescaledb-ha:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-ackerblick}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-ackerblick}
+    volumes:
+      - /mnt/ackerblick-db/postgresql:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ackerblick} -d ${DB_NAME:-ackerblick}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    # Run migrations on every deploy, then start the server.
+    # Uses prisma migrate deploy (idempotent, safe for production).
+    command:
+      - sh
+      - -c
+      - node_modules/.bin/prisma migrate deploy && node dist/main.js
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks:
+      - backend
+      - frontend
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - frontend
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+volumes:
+  caddy-data:
+  caddy-config:

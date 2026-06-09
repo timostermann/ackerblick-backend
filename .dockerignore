@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+coverage
+.env*
+src/generated
+*.log
+.DS_Store
+infra
+.github
+bruno
+docs
