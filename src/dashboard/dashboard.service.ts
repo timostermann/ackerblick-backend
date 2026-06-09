@@ -31,6 +31,8 @@ export class DashboardService {
     const chronological = [...readings].reverse();
     const chartLabels = chronological.map((r) => r.recordedAt.toISOString());
     const chartValues = chronological.map((r) => r.soilMoisturePercent);
+    const chartTemp = chronological.map((r) => r.airTemperatureCelsius);
+    const chartHumidity = chronological.map((r) => r.relativeHumidityPercent);
 
     return `<!doctype html>
 <html lang="en">
@@ -56,7 +58,7 @@ export class DashboardService {
     <p class="subtitle">Last ${String(readings.length)} sensor readings (newest first).</p>
 
     <div class="card">
-      <canvas id="moistureChart" height="120"></canvas>
+      <canvas id="sensorChart" height="120"></canvas>
     </div>
 
     <div class="card">
@@ -65,8 +67,10 @@ export class DashboardService {
 
     <script>
       const labels = ${safeJson(chartLabels)};
-      const values = ${safeJson(chartValues)};
-      const canvas = document.getElementById("moistureChart");
+      const moisture = ${safeJson(chartValues)};
+      const temp = ${safeJson(chartTemp)};
+      const humidity = ${safeJson(chartHumidity)};
+      const canvas = document.getElementById("sensorChart");
       if (labels.length > 0) {
         new Chart(canvas, {
           type: "line",
@@ -75,16 +79,38 @@ export class DashboardService {
             datasets: [
               {
                 label: "Soil moisture (%)",
-                data: values,
+                data: moisture,
                 borderColor: "#16a34a",
                 backgroundColor: "rgba(22,163,74,0.15)",
                 tension: 0.25,
                 spanGaps: true,
+                yAxisID: "yMoisture",
+              },
+              {
+                label: "Air temp (°C)",
+                data: temp,
+                borderColor: "#ea580c",
+                backgroundColor: "rgba(234,88,12,0.1)",
+                tension: 0.25,
+                spanGaps: true,
+                yAxisID: "yTemp",
+              },
+              {
+                label: "Humidity (% RH)",
+                data: humidity,
+                borderColor: "#0ea5e9",
+                backgroundColor: "rgba(14,165,233,0.1)",
+                tension: 0.25,
+                spanGaps: true,
+                yAxisID: "yMoisture",
               },
             ],
           },
           options: {
-            scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } },
+            scales: {
+              yMoisture: { position: "left",  min: 0, max: 100, title: { display: true, text: "Moisture (%)" } },
+              yTemp:     { position: "right", title: { display: true, text: "Temp (°C)" }, grid: { drawOnChartArea: false } },
+            },
             plugins: { legend: { display: true } },
           },
         });
@@ -105,13 +131,16 @@ export class DashboardService {
           <td>${escapeHtml(r.recordedAt.toISOString())}</td>
           <td>${escapeHtml(r.deviceId ?? "—")}</td>
           <td>${r.soilMoisturePercent === null ? "—" : String(r.soilMoisturePercent)}</td>
+          <td>${r.airTemperatureCelsius === null ? "—" : String(r.airTemperatureCelsius)}</td>
+          <td>${r.relativeHumidityPercent === null ? "—" : String(r.relativeHumidityPercent)}</td>
+          <td>${r.airPressureHpa === null ? "—" : String(r.airPressureHpa)}</td>
         </tr>`,
       )
       .join("");
 
     return `<table>
       <thead>
-        <tr><th>Recorded at (UTC)</th><th>Device</th><th>Soil moisture (%)</th></tr>
+        <tr><th>Recorded at (UTC)</th><th>Device</th><th>Soil moisture (%)</th><th>Air temp (°C)</th><th>Humidity (%)</th><th>Pressure (hPa)</th></tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>`;
