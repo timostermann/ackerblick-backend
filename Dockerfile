@@ -19,6 +19,13 @@ RUN DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholde
 COPY src ./src
 COPY tsconfig.json tsconfig.build.json nest-cli.json ./
 RUN pnpm build
+# Prisma 7 CJS: TypeScript preserves .ts extensions in require() paths (it only
+# rewrites extensions for ESM import statements, not CJS require calls).
+# Replace require('./x.ts') → require('./x.js') in the compiled generated client.
+RUN find /app/dist/generated -name "*.js" \
+    | xargs -r sed -i \
+        -e "s/require('\(\..*\)\.ts')/require('\1.js')/g" \
+        -e 's/require("\(\..*\)\.ts")/require("\1.js")/g'
 
 # ---- Stage 2: Production ----
 FROM node:22-alpine AS production
