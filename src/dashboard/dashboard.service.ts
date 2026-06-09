@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
+import { IrrigationEventsService } from "../irrigation-events/irrigation-events.service";
 import { ReadingsService } from "../readings/readings.service";
 
-import type { SensorReading } from "../generated/prisma/client";
+import type { IrrigationEvent, SensorReading } from "../generated/prisma/client";
 
 @Injectable()
 export class DashboardService {
@@ -11,12 +12,16 @@ export class DashboardService {
 
   constructor(
     private readonly readingsService: ReadingsService,
+    private readonly irrigationEventsService: IrrigationEventsService,
     private readonly config: ConfigService,
   ) {}
 
   async renderHtml(): Promise<string> {
-    const readings = await this.readingsService.findRecent(this.resolveLimit());
-    return this.buildPage(readings);
+    const [readings, events] = await Promise.all([
+      this.readingsService.findRecent(this.resolveLimit()),
+      this.irrigationEventsService.findRecent(50),
+    ]);
+    return this.buildPage(readings, events);
   }
 
   // Env vars are always strings; coerce and guard against invalid values.
@@ -26,13 +31,46 @@ export class DashboardService {
     return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, 1000) : this.defaultLimit;
   }
 
-  private buildPage(readings: SensorReading[]): string {
+  private buildPage(readings: SensorReading[], events: IrrigationEvent[]): string {
     // Chart expects chronological order (oldest → newest); query returns newest first.
     const chronological = [...readings].reverse();
     const chartLabels = chronological.map((r) => r.recordedAt.toISOString());
     const chartValues = chronological.map((r) => r.soilMoisturePercent);
     const chartTemp = chronological.map((r) => r.airTemperatureCelsius);
     const chartHumidity = chronological.map((r) => r.relativeHumidityPercent);
+
+    // Map each event to the index of the nearest reading on the category x-axis.
+    // Known limitation: multiple events that fall within the same reading interval will
+    // share an index and their annotation labels will overlap. No deduplication is applied.
+    const chartAnnotations =
+      chronological.length > 0
+        ? events.map((e) => {
+            const eventTime = e.occurredAt.getTime();
+            let closestIdx = 0;
+            let minDiff = Infinity;
+            chronological.forEach((r, idx) => {
+              const diff = Math.abs(r.recordedAt.getTime() - eventTime);
+              if (diff < minDiff) {
+                minDiff = diff;
+                closestIdx = idx;
+              }
+            });
+            return {
+              type: "line",
+              scaleID: "x",
+              value: closestIdx,
+              borderColor: "#2563eb",
+              borderWidth: 1,
+              borderDash: [4, 4],
+              label: {
+                display: true,
+                content: formatAnnotationLabel(e.durationSeconds),
+                position: "start",
+                font: { size: 11 },
+              },
+            };
+          })
+        : [];
 
     return `<!doctype html>
 <html lang="en">
@@ -41,6 +79,7 @@ export class DashboardService {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ackerblick Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
     <style>
       :root { color-scheme: light dark; }
       body { font-family: system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 960px; }
@@ -65,11 +104,16 @@ export class DashboardService {
       ${this.buildTable(readings)}
     </div>
 
+    <div class="card">
+      ${this.buildIrrigationTable(events)}
+    </div>
+
     <script>
       const labels = ${safeJson(chartLabels)};
       const moisture = ${safeJson(chartValues)};
       const temp = ${safeJson(chartTemp)};
       const humidity = ${safeJson(chartHumidity)};
+      const annotations = ${safeJson(chartAnnotations)};
       const canvas = document.getElementById("sensorChart");
       if (labels.length > 0) {
         new Chart(canvas, {
@@ -111,7 +155,7 @@ export class DashboardService {
               yMoisture: { position: "left",  min: 0, max: 100, title: { display: true, text: "Moisture (%)" } },
               yTemp:     { position: "right", title: { display: true, text: "Temp (°C)" }, grid: { drawOnChartArea: false } },
             },
-            plugins: { legend: { display: true } },
+            plugins: { legend: { display: true }, annotation: { annotations } },
           },
         });
       }
@@ -145,6 +189,39 @@ export class DashboardService {
       <tbody>${rows}</tbody>
     </table>`;
   }
+
+  private buildIrrigationTable(events: IrrigationEvent[]): string {
+    if (events.length === 0) {
+      return '<p class="empty">No irrigation events yet.</p>';
+    }
+
+    const rows = events
+      .map(
+        (e) => `<tr>
+          <td>${escapeHtml(e.occurredAt.toISOString())}</td>
+          <td>${escapeHtml(e.deviceId ?? "—")}</td>
+          <td>${String(e.durationSeconds)}s</td>
+          <td>${e.moistureBeforePercent === null ? "—" : String(e.moistureBeforePercent)}</td>
+        </tr>`,
+      )
+      .join("");
+
+    return `<table>
+      <thead>
+        <tr><th>Occurred at (UTC)</th><th>Device</th><th>Duration</th><th>Before (%)</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+}
+
+function formatAnnotationLabel(seconds: number): string {
+  if (seconds < 60) {
+    return `💧 ${String(seconds)}s`;
+  }
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s === 0 ? `💧 ${String(m)}m` : `💧 ${String(m)}m ${String(s)}s`;
 }
 
 function safeJson(value: unknown): string {

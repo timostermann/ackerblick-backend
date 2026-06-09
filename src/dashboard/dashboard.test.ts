@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createTestingApp } from "../../test-utils";
 import { BasicAuthGuard } from "../common/guards/basic-auth.guard";
+import { IrrigationEventsService } from "../irrigation-events/irrigation-events.service";
 import { ReadingsService } from "../readings/readings.service";
 
 import { DashboardController } from "./dashboard.controller";
@@ -19,6 +20,7 @@ function basicAuth(user: string, password: string): string {
 }
 
 const mockReadingsService = { findRecent: vi.fn().mockResolvedValue([]) };
+const mockIrrigationEventsService = { findRecent: vi.fn().mockResolvedValue([]) };
 const mockConfigService = {
   get: (key: string): string | undefined => {
     if (key === "DASHBOARD_USER") return VALID_USER;
@@ -36,6 +38,7 @@ describe("GET /dashboard (HTTP integration)", () => {
       providers: [
         DashboardService,
         { provide: ReadingsService, useValue: mockReadingsService },
+        { provide: IrrigationEventsService, useValue: mockIrrigationEventsService },
         { provide: ConfigService, useValue: mockConfigService },
         BasicAuthGuard,
       ],

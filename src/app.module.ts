@@ -4,6 +4,7 @@ import { ConfigModule } from "@nestjs/config";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { DatabaseModule } from "./database/database.module";
 import { HealthModule } from "./health/health.module";
+import { IrrigationEventsModule } from "./irrigation-events/irrigation-events.module";
 import { ReadingsModule } from "./readings/readings.module";
 
 @Module({
@@ -12,6 +13,7 @@ import { ReadingsModule } from "./readings/readings.module";
     DatabaseModule,
     HealthModule,
     ReadingsModule,
+    IrrigationEventsModule,
     DashboardModule,
   ],
 })
